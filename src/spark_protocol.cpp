@@ -97,17 +97,20 @@ void SparkProtocol::init(const char *id,
 int SparkProtocol::handshake(void)
 {
   memcpy(queue + 40, device_id, 12);
+  # Read nonce
   int err = blocking_receive(queue, 40);
   if (0 > err) return err;
 
+  # Encrypt nonce + device_id
   rsa_context rsa;
   init_rsa_context_with_public_key(&rsa, server_public_key);
   err = rsa_pkcs1_encrypt(&rsa, RSA_PUBLIC, 52, queue, queue + 52);
   rsa_free(&rsa);
 
   if (err) return err;
-
+  # Sending encrypted(nonce + device_id)
   blocking_send(queue + 52, 256);
+  # Read data for session_key
   err = blocking_receive(queue, 384);
   if (0 > err) return err;
 
@@ -1215,13 +1218,24 @@ int SparkProtocol::set_key(const unsigned char *signed_encrypted_credentials)
   unsigned char credentials[40];
   unsigned char hmac[20];
 
+  # Decrypt session_key
+  /*
+  int decipher_aes_credentials(const unsigned char *private_key,
+                             const unsigned char *ciphertext,
+                             unsigned char *aes_credentials)
+  */
   if (0 != decipher_aes_credentials(core_private_key,
                                     signed_encrypted_credentials,
                                     credentials))
     return 1;
 
   calculate_ciphertext_hmac(signed_encrypted_credentials, credentials, hmac);
+/*
+void calculate_ciphertext_hmac(const unsigned char *ciphertext,
+                               const unsigned char *hmac_key,
+                               unsigned char *hmac)
 
+*/
   if (0 == verify_signature(signed_encrypted_credentials + 128,
                             server_public_key,
                             hmac))
